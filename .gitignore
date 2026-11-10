@@ -1,0 +1,8 @@
+.venv/
+firmware/.pio/
+firmware/src/secrets.h
+bridge/meter.env
+*.bin
+__pycache__/
+.DS_Store
+.vscode/
