@@ -1,0 +1,8 @@
+# Rendered into ~/.config/systemd/user by bridge/install.sh (Linux)
+[Unit]
+Description=Claude Usage Meter keep-alive push
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash __PUSH_SCRIPT__

@@ -37,6 +37,8 @@ weekly limit, each with a progress bar and a countdown to reset. Built on a ~$15
   soon as you use Claude Code again.
 - **Wireless firmware updates** (ArduinoOTA) after the first USB flash.
 - **Token-protected** HTTP endpoint on the device.
+- **Several computers**: run the bridge on every machine where you use the account (macOS
+  and Linux); the display always shows the newest report.
 
 ## How it works
 
@@ -58,10 +60,10 @@ Full details: **[docs/architecture.md](docs/architecture.md)**.
 
 - An ESP8266 + ST7789 240×240 display board (GeekMagic SmallTV-style; see
   [docs/hardware.md](docs/hardware.md) for pins and other boards)
-- macOS with Claude Code signed in with a
+- macOS or Linux with Claude Code signed in with a
   Claude subscription (Pro / Max / Team — rate limits are only reported for subscriptions)
 - `jq` and `curl` (`brew install jq`), Python 3 for PlatformIO
-- Mac and display on the same 2.4 GHz WiFi network
+- Computer(s) and display on the same network (display on 2.4 GHz WiFi)
 
 ## Quick start
 
@@ -96,10 +98,31 @@ The display shows a boot screen, joins WiFi and announces itself as `claude-mete
 bridge/install.sh --configure-claude
 ```
 
-This creates `bridge/meter.env` (token copied from `secrets.h`), installs the LaunchAgent and
-adds the status line to your Claude Code settings (backing them up first; respects
-`CLAUDE_CONFIG_DIR`). Leave out `--configure-claude` to get the settings snippet printed
-instead. Send any message in Claude Code and the display updates.
+This creates `bridge/meter.env` (token copied from `secrets.h`), installs the keep-alive
+(launchd agent on macOS, systemd user timer on Linux) and adds the status line to your Claude
+Code settings (backing them up first). Leave out `--configure-claude` to get the settings
+snippet printed instead. Send any message in Claude Code and the display updates.
+
+The status line goes into `$CLAUDE_CONFIG_DIR/settings.json` (default `~/.claude`). If you
+run the account through a wrapper with its own config dir, pass the same dir:
+
+```sh
+CLAUDE_CONFIG_DIR=~/.claude-personal bridge/install.sh --configure-claude
+```
+
+### More computers
+
+Use the same account on another machine? Clone the repo there and install with the token
+(no firmware secrets needed):
+
+```sh
+git clone https://github.com/AlexVanchov/claude-usage-meter.git && cd claude-usage-meter
+CLAUDE_METER_TOKEN=<token> bridge/install.sh --configure-claude
+```
+
+Every machine pushes its own latest report; the display ignores reports older than the
+newest it has shown, so an idle machine's keep-alive never rolls back fresher numbers.
+Only connect one Claude account — the display shows a single set of limits.
 
 ## Updating the firmware over WiFi
 
@@ -141,7 +164,8 @@ Request format: [docs/architecture.md](docs/architecture.md#the-request).
 | Symptom | Check |
 |---|---|
 | Status line shows only the model name | You're not signed in with a subscription (`/status` in Claude Code). |
-| Status line shows %, display doesn't change | `curl http://claude-meter.local/usage`; same WiFi? `tail ~/Library/Logs/claude-meter-push.log` |
+| Status line shows %, display doesn't change | `curl http://claude-meter.local/usage`; same network? Logs: `~/Library/Logs/claude-meter-push.log` (macOS), `journalctl --user -u claude-meter-push` (Linux) |
+| `.local` name doesn't resolve (Linux without Avahi) | Set `CLAUDE_METER_HOST` to the display's IP in `bridge/meter.env` |
 | `{"ok":false,"error":"bad token"}` | `CLAUDE_METER_TOKEN` in `bridge/meter.env` ≠ `METER_TOKEN` in `secrets.h` |
 | Display shows `--%` after power-up | Normal until the first update (≤ 60 s while the Mac is on). |
 | Red dot in header | No fresh numbers for 15 min — Claude Code idle or Mac asleep/away. |
@@ -154,7 +178,7 @@ Serial log (115200 baud) prints WiFi, updates and heap stats:
 ## Uninstall
 
 ```sh
-bridge/uninstall.sh        # removes LaunchAgent, status line entry and cached state
+bridge/uninstall.sh        # removes keep-alive, status line entry and cached state
 ```
 
 Restore the stock firmware with your backup (see [docs/hardware.md](docs/hardware.md#backup--restore)).
@@ -170,10 +194,12 @@ firmware/                PlatformIO project (Arduino core, TFT_eSPI, ArduinoJson
   src/secrets.example.h  template for secrets.h (git-ignored)
   src/gen_fonts.h        generated anti-aliased fonts (do not edit)
   src/gen_sprites.h      generated pixel art (do not edit)
-bridge/                  Mac side
+bridge/                  computer side (macOS + Linux)
   claude-meter-statusline.sh   Claude Code statusLine command
   claude-meter-push.sh         sends latest numbers to the display
-  com.claude-meter.push.plist.template   LaunchAgent (every 60 s)
+  common.sh                    shared settings (host, token, state dir)
+  com.claude-meter.push.plist.template   launchd keep-alive (macOS)
+  claude-meter-push.{service,timer}.template   systemd keep-alive (Linux)
   install.sh, uninstall.sh
 tools/
   gen_assets.py          font + sprite generator

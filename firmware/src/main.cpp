@@ -79,7 +79,8 @@ static void loadUsage() {
   readWindow(d["seven_day"], st.weekly);
   if (st.session.valid || st.weekly.valid) {
     st.haveData = true;
-    // Age unknown until the Mac reports in: show it as stale.
+    st.lastCapturedAt = d["captured_at"] | 0LL;
+    // Age unknown until a computer reports in: show it as stale.
     st.lastUpdateMs = millis() - (uint32_t)(STALE_AFTER_MIN + 1) * 60000UL;
     Serial.printf("[store] restored session=%.1f%% weekly=%.1f%%\n", st.session.pct, st.weekly.pct);
   }
@@ -104,11 +105,6 @@ static void handlePostUsage() {
   JsonVariantConst root = doc.as<JsonVariantConst>();
   JsonVariantConst rl = root["rate_limits"].isNull() ? root : root["rate_limits"];
 
-  bool changed = false;
-  bool any = false;
-  if (!rl["five_hour"].isNull()) { any = true; changed |= readWindow(rl["five_hour"], st.session); }
-  if (!rl["seven_day"].isNull()) { any = true; changed |= readWindow(rl["seven_day"], st.weekly); }
-
   // Use the sender's clock if NTP hasn't synced yet.
   long long senderNow = doc["now"] | 0LL;
   if (!st.timeValid && senderNow > 1700000000LL) {
@@ -116,11 +112,25 @@ static void handlePostUsage() {
     settimeofday(&tv, nullptr);
   }
 
+  // captured_at = when Claude Code reported these numbers (keep-alive resends
+  // carry the original time, so the stale dot reflects the real data age).
+  long long capturedAt = doc["captured_at"] | senderNow;
+
+  // Several computers may report the same account. Ignore anything older than the
+  // newest report already shown, so an idle machine's keep-alive can't roll back
+  // fresher numbers from a machine that is in use.
+  if (capturedAt > 0 && capturedAt < st.lastCapturedAt) {
+    server.send(200, "application/json", "{\"ok\":true,\"changed\":false,\"ignored\":\"older\"}");
+    return;
+  }
+
+  bool changed = false;
+  bool any = false;
+  if (!rl["five_hour"].isNull()) { any = true; changed |= readWindow(rl["five_hour"], st.session); }
+  if (!rl["seven_day"].isNull()) { any = true; changed |= readWindow(rl["seven_day"], st.weekly); }
+
   if (any) {
     st.haveData = true;
-    // captured_at = when Claude Code reported these numbers (keep-alive resends
-    // carry the original time, so the stale dot reflects the real data age).
-    long long capturedAt = doc["captured_at"] | senderNow;
     long long age = (capturedAt > 0 && senderNow >= capturedAt) ? senderNow - capturedAt : 0;
     if (age > 40LL * 86400) age = 40LL * 86400;
     st.lastUpdateMs = millis() - (uint32_t)(age * 1000);

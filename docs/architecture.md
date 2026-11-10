@@ -42,8 +42,9 @@ Nothing in this project reads Claude credentials or calls Anthropic APIs directl
 ### `claude-meter-statusline.sh` (runs inside Claude Code)
 
 1. Extracts `rate_limits.five_hour` / `seven_day` with `jq`.
-2. Writes them with the capture time to
-   `~/Library/Application Support/claude-meter/latest.json`:
+2. Writes them with the capture time to `latest.json` in the state dir
+   (`~/Library/Application Support/claude-meter/` on macOS,
+   `~/.local/state/claude-meter/` on Linux):
    ```json
    {"captured_at":1794317920,"rate_limits":{"five_hour":{...},"seven_day":{...}}}
    ```
@@ -57,11 +58,20 @@ Nothing in this project reads Claude credentials or calls Anthropic APIs directl
 Adds `now` to `latest.json` and POSTs it to `http://$CLAUDE_METER_HOST/usage` with the
 token from `bridge/meter.env` (4 s timeout).
 
-### LaunchAgent `com.claude-meter.push`
+### Keep-alive
 
-Runs `claude-meter-push.sh` every 60 s and at login. This is the **keep-alive**: after a
-power cut the display has its numbers back within a minute even if Claude Code is idle.
-Log: `~/Library/Logs/claude-meter-push.log`.
+Runs `claude-meter-push.sh` every 60 s: launchd agent `com.claude-meter.push` on macOS
+(log `~/Library/Logs/claude-meter-push.log`), systemd user timer `claude-meter-push.timer`
+on Linux (`journalctl --user -u claude-meter-push`). After a power cut the display has its
+numbers back within a minute even if Claude Code is idle.
+
+### Several computers
+
+Each computer running the bridge pushes its own `latest.json`. The display keeps the
+`captured_at` of the newest report it has shown and **ignores older ones**
+(`{"ok":true,"ignored":"older"}`), so the machine you're actually using always wins and an
+idle machine's keep-alive can't roll the numbers back. All computers must report the same
+Claude account.
 
 ## 3. The request
 
@@ -92,7 +102,7 @@ Responses:
 
 | Status | Body |
 |---|---|
-| 200 | `{"ok":true,"changed":true\|false}` |
+| 200 | `{"ok":true,"changed":true\|false}` — or `"ignored":"older"` when `captured_at` is older than the newest report shown |
 | 400 | `{"ok":false,"error":"<json parse error>"}` |
 | 401 | `{"ok":false,"error":"bad token"}` |
 

@@ -5,21 +5,20 @@
 # 2. Push them to the Claude Meter (on change, else at most every 15 s; non-blocking)
 # 3. Print a short status line
 input=$(cat)
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-STATE_DIR="$HOME/Library/Application Support/claude-meter"
-LATEST="$STATE_DIR/latest.json"
+. "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 rl=$(printf '%s' "$input" | jq -c '(.rate_limits // {}) | {five_hour, seven_day} | with_entries(select(.value != null))' 2>/dev/null)
 if [ -n "$rl" ] && [ "$rl" != "{}" ]; then
-  mkdir -p "$STATE_DIR"
-  prev=$(jq -c '.rate_limits' "$LATEST" 2>/dev/null)
-  printf '{"captured_at":%s,"rate_limits":%s}\n' "$(date +%s)" "$rl" > "$LATEST.tmp" && mv "$LATEST.tmp" "$LATEST"
-  # push on change, and otherwise at most every 15 s so the display knows you're active
+  mkdir -p "$CLAUDE_METER_STATE_DIR"
   now=$(date +%s)
-  last_push=$(cat "$STATE_DIR/last_push" 2>/dev/null || echo 0)
+  prev=$(jq -c '.rate_limits' "$CLAUDE_METER_LATEST" 2>/dev/null)
+  printf '{"captured_at":%s,"rate_limits":%s}\n' "$now" "$rl" > "$CLAUDE_METER_LATEST.tmp" &&
+    mv "$CLAUDE_METER_LATEST.tmp" "$CLAUDE_METER_LATEST"
+  # push on change, and otherwise at most every 15 s so the display knows you're active
+  last_push=$(cat "$CLAUDE_METER_STATE_DIR/last_push" 2>/dev/null || echo 0)
   if [ "$rl" != "$prev" ] || [ $((now - last_push)) -ge 15 ]; then
-    echo "$now" > "$STATE_DIR/last_push"
-    ( "$DIR/claude-meter-push.sh" </dev/null >/dev/null 2>&1 & )
+    echo "$now" > "$CLAUDE_METER_STATE_DIR/last_push"
+    ( "$BRIDGE_DIR/claude-meter-push.sh" </dev/null >/dev/null 2>&1 & )
   fi
 fi
 
