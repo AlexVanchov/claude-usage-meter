@@ -33,7 +33,8 @@ weekly limit, each with a progress bar and a countdown to reset. Built on a ~$15
 - **Colour-coded bars**: orange → amber above 80 % → red above 95 %.
 - **Survives power loss**: last numbers are kept in flash and shown immediately on boot.
 - **Stale indicator**: red dot when no fresh data for 15 min; grey dot before the first update.
-- **Idle screen**: animated pixel-art scene after 10 min without changes; wakes on update.
+- **Idle screen**: animated pixel-art scene after 10 min without Claude Code activity; wakes as
+  soon as you use Claude Code again.
 - **Wireless firmware updates** (ArduinoOTA) after the first USB flash.
 - **Token-protected** HTTP endpoint on the device.
 
@@ -144,6 +145,7 @@ Request format: [docs/architecture.md](docs/architecture.md#the-request).
 | `{"ok":false,"error":"bad token"}` | `CLAUDE_METER_TOKEN` in `bridge/meter.env` ≠ `METER_TOKEN` in `secrets.h` |
 | Display shows `--%` after power-up | Normal until the first update (≤ 60 s while the Mac is on). |
 | Red dot in header | No fresh numbers for 15 min — Claude Code idle or Mac asleep/away. |
+| Idle animation instead of limits | No Claude Code activity for 10 min; send a message to wake it. |
 | Blank/dark screen on another board | Pins or backlight polarity differ — see [docs/hardware.md](docs/hardware.md). |
 
 Serial log (115200 baud) prints WiFi, updates and heap stats:

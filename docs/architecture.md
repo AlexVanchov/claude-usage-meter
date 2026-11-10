@@ -47,8 +47,9 @@ Nothing in this project reads Claude credentials or calls Anthropic APIs directl
    ```json
    {"captured_at":1794317920,"rate_limits":{"five_hour":{...},"seven_day":{...}}}
    ```
-3. If the numbers differ from the previous file, starts `claude-meter-push.sh` in the
-   background (detached, so the status line never waits on the network).
+3. Starts `claude-meter-push.sh` in the background (detached, so the status line never
+   waits on the network) when the numbers changed, and otherwise at most every 15 s — so
+   the display also learns that you are active when the percentages stay the same.
 4. Prints `Opus · 5h 11% · 7d 1%` as the status line.
 
 ### `claude-meter-push.sh`
@@ -118,13 +119,17 @@ Responses:
 ### State and timing
 
 - **Change detection** — an update "changes" a window when its rounded percentage or
-  `resets_at` differs. Changes redraw, save to flash and reset the idle timer.
+  `resets_at` differs. Changes redraw and are saved to flash.
+- **Activity** — a report with a newer `captured_at` than any seen before (i.e. Claude Code
+  ran its status line again) counts as activity even if the numbers are unchanged.
+  Keep-alive resends repeat the old `captured_at`, so they don't.
 - **Data age** — `seconds_since_update = now − captured_at`. Keep-alive resends carry the
   original `captured_at`, so they never make old data look fresh.
 - **Stale dot** — red when data age > `STALE_AFTER_MIN` (15 min); grey before any data.
 - **After boot** — numbers restored from flash are treated as stale until the Mac reports in.
 - **Window rollover** — if `resets_at` has passed, the card shows 0 % and "Window reset".
-- **Idle** — no change for `IDLE_AFTER_MIN` (10 min) → pixel-art scene; next change wakes it.
+- **Idle** — no activity or change for `IDLE_AFTER_MIN` (10 min) → pixel-art scene; the next
+  Claude Code report wakes it.
 
 ## 5. Security notes
 

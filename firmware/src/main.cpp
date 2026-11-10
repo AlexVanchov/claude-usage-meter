@@ -125,7 +125,11 @@ static void handlePostUsage() {
     if (age > 40LL * 86400) age = 40LL * 86400;
     st.lastUpdateMs = millis() - (uint32_t)(age * 1000);
     if (changed) saveUsage(capturedAt);
-    if (changed || doc["wake"] == true) {
+    // Activity = Claude Code produced a new report (newer captured_at), even if
+    // the percentages are unchanged. Keep-alive resends of the same report don't count.
+    bool fresh = capturedAt > st.lastCapturedAt && st.lastCapturedAt != 0;
+    if (capturedAt > st.lastCapturedAt) st.lastCapturedAt = capturedAt;
+    if (changed || fresh || doc["wake"] == true) {
       st.lastChangeMs = millis();
       ui::invalidate();
     }

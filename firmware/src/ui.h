@@ -12,7 +12,8 @@ struct MeterState {
   UsageWindow weekly;       // seven_day
   bool     haveData = false;
   uint32_t lastUpdateMs = 0;   // millis() of last accepted update
-  uint32_t lastChangeMs = 0;   // millis() of last update that changed values
+  uint32_t lastChangeMs = 0;   // millis() of last activity (new Claude Code report or changed values)
+  long long lastCapturedAt = 0; // captured_at of the newest report seen
   bool     wifiUp = false;
   bool     timeValid = false;
 };
